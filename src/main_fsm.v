@@ -96,12 +96,11 @@ module main_fsm (
             show_hold_timer <= 0;
 
             // Keep calibration values
-            reg_cal_L[0] <= 16'd0;     reg_cal_N[0] <= 16'd521;
-            reg_cal_L[1] <= 16'd1000;  reg_cal_N[1] <= 16'd27335;
-            reg_cal_L[2] <= 16'd1500;  reg_cal_N[2] <= 16'd39867;
-            reg_cal_L[3] <= 16'd2000;  reg_cal_N[3] <= 16'd52174;
+            reg_cal_L[0] <= 16'd0;     reg_cal_N[0] <= 16'd918;
+            reg_cal_L[1] <= 16'd1000;  reg_cal_N[1] <= 16'd27248;
+            reg_cal_L[2] <= 16'd1500;  reg_cal_N[2] <= 16'd40001;
+            reg_cal_L[3] <= 16'd2000;  reg_cal_N[3] <= 16'd51792;
         end else begin
-            buzzer_en <= 1'b0; // Buzzer only on for one cycle in S_TEST_SHOW
             state <= next_state;
 
             // Timer logic
@@ -116,35 +115,42 @@ module main_fsm (
             case (state)
                 S_IDLE: begin
                     display_mode <= 2'b00; // Fixed student ID 0029
-            display_data <= 0;
+                    display_data <= 0;
+                    buzzer_en <= 1'b0; // Buzzer off in IDLE
                 end
 
                 // --- Test Mode States (Fixed-Point) ---
                 S_TEST_WAIT_N: begin
                     display_mode <= 2'b01; // Switch to data display mode
                     if (filter_valid) N_O_reg <= filter_data;
+                    buzzer_en <= 1'b0; // Buzzer off during wait
                 end
                 S_TEST_CALC_P1: begin
                     product1 <= (N_O_reg - reg_cal_N[i_comb]) * delta_L_comb;
+                    buzzer_en <= 1'b0; // Buzzer off during calc
                 end
                 S_TEST_CALC_P2: begin
                     product2 <= product1 * recip_N_comb;
+                    buzzer_en <= 1'b0; // Buzzer off during calc
                 end
                 S_TEST_CALC_ADD: begin
                     L_O_reg <= reg_cal_L[i_comb] + (product2 >> 24);
+                    buzzer_en <= 1'b0; // Buzzer off during calc
                 end
                 S_TEST_SHOW: begin
                     display_mode <= 2'b01;
                     display_data <= L_O_reg;
-                    buzzer_en <= 1'b1;
+                    buzzer_en <= 1'b1; // Buzzer ON here
                 end
                 S_SHOW_HOLD: begin
                     display_mode <= 2'b01; // Keep showing data
                     display_data <= L_O_reg;
+                    buzzer_en <= 1'b1; // Buzzer ON during hold
                 end
                 
                 default: begin
                     display_mode <= 2'b00;
+                    buzzer_en <= 1'b0; // Buzzer off by default
                 end
             endcase
         end
