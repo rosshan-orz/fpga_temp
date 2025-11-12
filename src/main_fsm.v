@@ -37,6 +37,11 @@ module main_fsm (
     reg [25:0] show_hold_timer;
     wire show_hold_timer_done = (show_hold_timer == SHOW_HOLD_TIME - 1);
 
+    // --- Buzzer Timer ---
+    localparam BUZZER_DURATION_TIME = 25'd24000000; // 2s at 12MHz
+    reg [24:0] buzzer_timer;
+    wire buzzer_timer_done = (buzzer_timer == BUZZER_DURATION_TIME - 1);
+
     // --- Combinational Logic for Interpolation (SYNTAX FIX) ---
     wire [1:0] i_comb;
     wire [16:0] delta_L_comb;
@@ -88,7 +93,8 @@ module main_fsm (
             state <= S_IDLE;
             display_mode <= 2'b00; // Start with fixed student ID 0029
             display_data <= 0;
-            buzzer_en <= 1'b0;
+            buzzer_en <= 1'b0; // Reset buzzer_en
+            buzzer_timer <= 0; // Reset buzzer_timer
             L_O_reg <= 0;
             N_O_reg <= 0;
             product1 <= 0;
@@ -112,45 +118,51 @@ module main_fsm (
                 end
             end
 
+            // Buzzer timer logic
+            if (single_trig_pulse) begin // Start timer on button press
+                buzzer_timer <= 0;
+            end else if (!buzzer_timer_done) begin // Count up if not done
+                buzzer_timer <= buzzer_timer + 1;
+            end
+
+            // Control buzzer_en based on buzzer_timer
+            if (!buzzer_timer_done) begin
+                buzzer_en <= 1'b1;
+            end else begin
+                buzzer_en <= 1'b0;
+            end
+
             case (state)
                 S_IDLE: begin
                     display_mode <= 2'b00; // Fixed student ID 0029
                     display_data <= 0;
-                    buzzer_en <= 1'b0; // Buzzer off in IDLE
                 end
 
                 // --- Test Mode States (Fixed-Point) ---
                 S_TEST_WAIT_N: begin
                     display_mode <= 2'b01; // Switch to data display mode
                     if (filter_valid) N_O_reg <= filter_data;
-                    buzzer_en <= 1'b0; // Buzzer off during wait
                 end
                 S_TEST_CALC_P1: begin
                     product1 <= (N_O_reg - reg_cal_N[i_comb]) * delta_L_comb;
-                    buzzer_en <= 1'b0; // Buzzer off during calc
                 end
                 S_TEST_CALC_P2: begin
                     product2 <= product1 * recip_N_comb;
-                    buzzer_en <= 1'b0; // Buzzer off during calc
                 end
                 S_TEST_CALC_ADD: begin
                     L_O_reg <= reg_cal_L[i_comb] + (product2 >> 24);
-                    buzzer_en <= 1'b0; // Buzzer off during calc
                 end
                 S_TEST_SHOW: begin
                     display_mode <= 2'b01;
                     display_data <= L_O_reg;
-                    buzzer_en <= 1'b1; // Buzzer ON here
                 end
                 S_SHOW_HOLD: begin
                     display_mode <= 2'b01; // Keep showing data
                     display_data <= L_O_reg;
-                    buzzer_en <= 1'b1; // Buzzer ON during hold
                 end
                 
                 default: begin
                     display_mode <= 2'b00;
-                    buzzer_en <= 1'b0; // Buzzer off by default
                 end
             endcase
         end
